@@ -1,5 +1,6 @@
 // API Keys - Fetched from local storage or prompted to prevent GitHub leaks!
 let OPENROUTER_API_KEY = localStorage.getItem('openrouter_key');
+let HUGGINGFACE_API_KEY = localStorage.getItem('huggingface_key');
 
 if (!OPENROUTER_API_KEY) {
     OPENROUTER_API_KEY = prompt("Enter your OpenRouter API Key to start chatting:");
@@ -7,7 +8,13 @@ if (!OPENROUTER_API_KEY) {
         localStorage.setItem('openrouter_key', OPENROUTER_API_KEY);
     }
 }
-// Image generation now uses Pollinations.ai which is free and requires no key.
+
+if (!HUGGINGFACE_API_KEY) {
+    HUGGINGFACE_API_KEY = prompt("Enter your Hugging Face API Key for image generation:");
+    if (HUGGINGFACE_API_KEY) {
+        localStorage.setItem('huggingface_key', HUGGINGFACE_API_KEY);
+    }
+}
 
 const chatArea = document.getElementById('chatArea');
 const userInput = document.getElementById('userInput');
@@ -134,14 +141,21 @@ async function handleGenerateImage() {
     showTypingIndicator();
 
     try {
-        const encodedPrompt = encodeURIComponent(prompt);
-        // Using Pollinations.ai which is free and unlimited
-        const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
-
-        const response = await fetch(url);
+        const response = await fetch("https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${HUGGINGFACE_API_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ inputs: prompt })
+        });
 
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            if (response.status === 402) {
+                throw new Error("Hugging Face API exhausted free compute or requires PRO tier for this model.");
+            } else {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
         }
 
         const blob = await response.blob();
