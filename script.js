@@ -62,7 +62,7 @@ Authorization: `Bearer ${OPENROUTER_API_KEY}`,
 "Content-Type": "application/json"
 },
 body: JSON.stringify({
-model: "openrouter/auto",
+model: "mistralai/mistral-7b-instruct",
 messages: [
 {
 role: "system",
@@ -83,9 +83,13 @@ content: userMessage
 const data = await response.json();
 
 typing.remove();
-
 if (data.choices && data.choices.length > 0) {
-addMessage(data.choices[0].message.content, "bot");
+const reply =
+data.choices[0]?.message?.content ||
+data.choices[0]?.text ||
+"Sorry, no response";
+
+addMessage(reply, "bot");
 } else {
 addMessage("Failed to fetch because of server issue", "bot");
 }
