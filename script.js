@@ -6,6 +6,20 @@ const imageInput = document.getElementById("image-input");
 const openrouterKeyInput = document.getElementById("openrouter-key");
 const huggingfaceKeyInput = document.getElementById("huggingface-key");
 
+// Load saved keys
+openrouterKeyInput.value = localStorage.getItem("openrouterKey") || "";
+huggingfaceKeyInput.value = localStorage.getItem("huggingfaceKey") || "";
+
+// Save keys
+openrouterKeyInput.addEventListener("change", () => {
+localStorage.setItem("openrouterKey", openrouterKeyInput.value);
+});
+
+huggingfaceKeyInput.addEventListener("change", () => {
+localStorage.setItem("huggingfaceKey", huggingfaceKeyInput.value);
+});
+
+// Add message
 function addMessage(message, sender) {
 const messageDiv = document.createElement("div");
 messageDiv.classList.add("message", sender);
@@ -14,12 +28,14 @@ chatBox.appendChild(messageDiv);
 chatBox.scrollTop = chatBox.scrollHeight;
 }
 
+// Send Message
 async function sendMessage() {
+
 const userMessage = userInput.value.trim();
 const OPENROUTER_API_KEY = openrouterKeyInput.value.trim();
 
 if (!OPENROUTER_API_KEY) {
-alert("Please enter OpenRouter API key");
+alert("Please enter OpenRouter API Key");
 return;
 }
 
@@ -34,6 +50,7 @@ typing.innerText = "AI is typing...";
 chatBox.appendChild(typing);
 
 try {
+
 const response = await fetch(
 "https://openrouter.ai/api/v1/chat/completions",
 {
@@ -41,16 +58,17 @@ method: "POST",
 headers: {
 Authorization: `Bearer ${OPENROUTER_API_KEY}`,
 "HTTP-Referer": "https://aischatbot.netlify.app",
+"X-Title": "AIS Chatbot",
 "Content-Type": "application/json"
 },
 body: JSON.stringify({
-model: "openai/gpt-3.5-turbo",
+model: "openrouter/auto",
 messages: [
 {
 role: "system",
 content: `
 You are AIS Chatbot created by Shanmukha Sai.
-Be smart, concise and helpful.
+Be helpful, smart, and concise.
 `
 },
 {
@@ -67,8 +85,7 @@ const data = await response.json();
 typing.remove();
 
 if (data.choices && data.choices.length > 0) {
-const botReply = data.choices[0].message.content;
-addMessage(botReply, "bot");
+addMessage(data.choices[0].message.content, "bot");
 } else {
 addMessage("Failed to fetch because of server issue", "bot");
 }
@@ -76,24 +93,28 @@ addMessage("Failed to fetch because of server issue", "bot");
 } catch (error) {
 typing.remove();
 addMessage("Failed to fetch because of server issue", "bot");
-}
+console.error(error);
 }
 
+}
+
+// Button click
 sendBtn.addEventListener("click", sendMessage);
 
-userInput.addEventListener("keypress", function (e) {
-if (e.key === "Enter") {
+// Enter key
+userInput.addEventListener("keypress", function(e){
+if(e.key === "Enter"){
 sendMessage();
 }
 });
 
-// Image generation
-imageInput.addEventListener("change", async function () {
+// Image Generation
+imageInput.addEventListener("change", async function(){
 
 const HUGGINGFACE_API_KEY = huggingfaceKeyInput.value.trim();
 
 if (!HUGGINGFACE_API_KEY) {
-alert("Please enter HuggingFace API key");
+alert("Please enter HuggingFace API Key");
 return;
 }
 
@@ -103,6 +124,7 @@ if (!file) return;
 addMessage("Generating image...", "bot");
 
 try {
+
 const response = await fetch(
 "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2",
 {
