@@ -1,188 +1,135 @@
-// API Keys - Fetched from local storage or prompted to prevent GitHub leaks!
-let OPENROUTER_API_KEY = localStorage.getItem('openrouter_key');
-let HUGGINGFACE_API_KEY = localStorage.getItem('huggingface_key');
+const chatBox = document.getElementById("chat-box");
+const userInput = document.getElementById("user-input");
+const sendBtn = document.getElementById("send-btn");
+const imageInput = document.getElementById("image-input");
+
+const openrouterKeyInput = document.getElementById("openrouter-key");
+const huggingfaceKeyInput = document.getElementById("huggingface-key");
+
+function addMessage(message, sender) {
+const messageDiv = document.createElement("div");
+messageDiv.classList.add("message", sender);
+messageDiv.innerText = message;
+chatBox.appendChild(messageDiv);
+chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+async function sendMessage() {
+const userMessage = userInput.value.trim();
+const OPENROUTER_API_KEY = openrouterKeyInput.value.trim();
 
 if (!OPENROUTER_API_KEY) {
-    OPENROUTER_API_KEY = prompt("Enter your OpenRouter API Key to start chatting:");
-    if (OPENROUTER_API_KEY) {
-        localStorage.setItem('openrouter_key', OPENROUTER_API_KEY);
-    }
+alert("Please enter OpenRouter API key");
+return;
 }
 
-if (!HUGGINGFACE_API_KEY) {
-    HUGGINGFACE_API_KEY = prompt("Enter your Hugging Face API Key for image generation:");
-    if (HUGGINGFACE_API_KEY) {
-        localStorage.setItem('huggingface_key', HUGGINGFACE_API_KEY);
-    }
+if (!userMessage) return;
+
+addMessage(userMessage, "user");
+userInput.value = "";
+
+const typing = document.createElement("div");
+typing.classList.add("message", "bot");
+typing.innerText = "AI is typing...";
+chatBox.appendChild(typing);
+
+try {
+const response = await fetch(
+"https://openrouter.ai/api/v1/chat/completions",
+{
+method: "POST",
+headers: {
+Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+"HTTP-Referer": "https://aischatbot.netlify.app",
+"Content-Type": "application/json"
+},
+body: JSON.stringify({
+model: "openai/gpt-3.5-turbo",
+messages: [
+{
+role: "system",
+content: `
+You are AIS Chatbot created by Shanmukha Sai.
+Be smart, concise and helpful.
+`
+},
+{
+role: "user",
+content: userMessage
+}
+]
+})
+}
+);
+
+const data = await response.json();
+
+typing.remove();
+
+if (data.choices && data.choices.length > 0) {
+const botReply = data.choices[0].message.content;
+addMessage(botReply, "bot");
+} else {
+addMessage("Failed to fetch because of server issue", "bot");
 }
 
-const chatArea = document.getElementById('chatArea');
-const userInput = document.getElementById('userInput');
-const sendBtn = document.getElementById('sendBtn');
-const generateImageBtn = document.getElementById('generateImageBtn');
-const typingIndicator = document.getElementById('typingIndicator');
-
-let conversationHistory = [];
-
-function scrollToBottom() {
-    chatArea.scrollTop = chatArea.scrollHeight;
+} catch (error) {
+typing.remove();
+addMessage("Failed to fetch because of server issue", "bot");
+}
 }
 
-function appendMessage(text, sender, isImage = false) {
-    const msgDiv = document.createElement('div');
-    msgDiv.classList.add('message', sender);
+sendBtn.addEventListener("click", sendMessage);
 
-    if (isImage) {
-        const img = document.createElement('img');
-        img.src = text;
-        img.alt = "Generated AI Image";
-        // To handle smooth scrolling after image loads
-        img.onload = scrollToBottom;
-        msgDiv.appendChild(img);
-    } else {
-        msgDiv.textContent = text;
-    }
-
-    // Insert message before typing indicator to maintain flow if needed, 
-    // but here indicator is outside chatArea or at bottom
-    chatArea.appendChild(msgDiv);
-    scrollToBottom();
+userInput.addEventListener("keypress", function (e) {
+if (e.key === "Enter") {
+sendMessage();
 }
-
-function appendError(errorText) {
-    const msgDiv = document.createElement('div');
-    msgDiv.classList.add('message', 'error');
-    msgDiv.textContent = errorText;
-    chatArea.appendChild(msgDiv);
-    scrollToBottom();
-}
-
-function showTypingIndicator() {
-    typingIndicator.style.display = 'block';
-    scrollToBottom();
-}
-
-function hideTypingIndicator() {
-    typingIndicator.style.display = 'none';
-}
-
-async function handleSendMessage() {
-    const text = userInput.value.trim();
-    if (!text) return;
-
-    // Clear input
-    userInput.value = '';
-
-    // Append user message
-    appendMessage(text, 'user');
-
-    // Add to history
-    conversationHistory.push({ role: 'user', content: text });
-
-    // Show typing
-    showTypingIndicator();
-
-    try {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-                "HTTP-Referer": window.location.href, // Added for OpenRouter rankings/CORS
-                "X-Title": "Local AI Chatbot", // Added for OpenRouter
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                model: "google/gemini-2.0-flash-lite-preview-02-05:free", // Changed to a free model to avoid billing issues
-                messages: conversationHistory
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data && data.choices && data.choices.length > 0) {
-            const botResponse = data.choices[0].message.content;
-
-            // Add to history
-            conversationHistory.push({ role: 'assistant', content: botResponse });
-
-            // Hide typing and show response
-            hideTypingIndicator();
-            appendMessage(botResponse, 'bot');
-        } else {
-            throw new Error("Invalid response format");
-        }
-
-    } catch (error) {
-        console.error("Chat API Error:", error);
-        hideTypingIndicator();
-        appendError("Failed to fetch because of server issue");
-        // Remove the user message from history if failed to maintain sync, or keep it depending on UX preferred
-        conversationHistory.pop();
-    }
-}
-
-async function handleGenerateImage() {
-    const prompt = userInput.value.trim();
-    if (!prompt) {
-        appendError("Please enter a prompt in the input field to generate an image.");
-        return;
-    }
-
-    // Clear input
-    userInput.value = '';
-
-    // Append user message for context
-    appendMessage(`Generate image: ${prompt}`, 'user');
-
-    showTypingIndicator();
-
-    try {
-        const response = await fetch("https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${HUGGINGFACE_API_KEY}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ inputs: prompt })
-        });
-
-        if (!response.ok) {
-            if (response.status === 402) {
-                throw new Error("Hugging Face API exhausted free compute or requires PRO tier for this model.");
-            } else {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-        }
-
-        const blob = await response.blob();
-        const imageUrl = URL.createObjectURL(blob);
-
-        hideTypingIndicator();
-        appendMessage(imageUrl, 'bot', true);
-
-    } catch (error) {
-        console.error("Image Gen API Error:", error);
-        hideTypingIndicator();
-        appendError("Failed to fetch because of server issue");
-    }
-}
-
-// Event Listeners
-sendBtn.addEventListener('click', handleSendMessage);
-
-generateImageBtn.addEventListener('click', handleGenerateImage);
-
-userInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        handleSendMessage();
-    }
 });
 
-// Focus input on load
-window.onload = () => {
-    userInput.focus();
-};
+// Image generation
+imageInput.addEventListener("change", async function () {
+
+const HUGGINGFACE_API_KEY = huggingfaceKeyInput.value.trim();
+
+if (!HUGGINGFACE_API_KEY) {
+alert("Please enter HuggingFace API key");
+return;
+}
+
+const file = imageInput.files[0];
+if (!file) return;
+
+addMessage("Generating image...", "bot");
+
+try {
+const response = await fetch(
+"https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2",
+{
+method: "POST",
+headers: {
+Authorization: `Bearer ${HUGGINGFACE_API_KEY}`
+},
+body: file
+}
+);
+
+const blob = await response.blob();
+const imageUrl = URL.createObjectURL(blob);
+
+const img = document.createElement("img");
+img.src = imageUrl;
+img.style.maxWidth = "250px";
+
+const messageDiv = document.createElement("div");
+messageDiv.classList.add("message", "bot");
+messageDiv.appendChild(img);
+
+chatBox.appendChild(messageDiv);
+chatBox.scrollTop = chatBox.scrollHeight;
+
+} catch (error) {
+addMessage("Image generation failed", "bot");
+}
+
+});
